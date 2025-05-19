@@ -44,7 +44,7 @@ class ModelConfig(BaseModel):
     model_name: str
     base_url: str
     api_key: str
-    model_type: ModelTypeEnum
+    model_type: str
 
 # 你可以在这里添加/修改模型
 MODEL_LIST = [
@@ -66,23 +66,8 @@ def get_models():
 def root():
     return RedirectResponse(url="/web/")
 
-class InferRequest(BaseModel):
-    model_id: str
-    input_text: Optional[str] = None
-    # input_image 由 multipart/form-data 上传
-
-class ChatResponse(BaseModel):
-    result: str
-
-class Text2ImgResponse(BaseModel):
-    image_base64: str  # base64 编码图片
-
-class EmbeddingResponse(BaseModel):
-    embedding: List[float]
-
 @app.post("/api/infer")
 async def infer(
-    request: Request,
     model_id: str = Form(...),
     input_text: Optional[str] = Form(None),
     session_id: Optional[str] = Form(None)
@@ -105,7 +90,7 @@ async def infer(
         llm = ChatOpenAI(
             model=model.model_name,
             base_url=model.base_url,
-            api_key=model.api_key,
+            api_key=Optional[model.api_key],
             temperature=0.5,
             max_tokens=1000,
             timeout=20,
@@ -133,10 +118,11 @@ async def infer(
         if rsp.status_code == HTTPStatus.OK:
             # 直接返回第一个图片的URL
             if rsp.output and rsp.output.results and len(rsp.output.results) > 0:
-                image_url = rsp.output.results[0].url
-                return {"image_url": image_url, "session_id": session_id}
-            else:
-                return {"error": "未获取到图片URL", "session_id": session_id}
+                first_result = next(iter(rsp.output.results), None)
+                if first_result:
+                    image_url = first_result.url
+                    return {"image_url": image_url, "session_id": session_id}
+            return {"error": "未获取到图片URL", "session_id": session_id}
         else:
             return {"error": f"图片生成失败, status_code: {rsp.status_code}, code: {getattr(rsp, 'code', '')}, message: {getattr(rsp, 'message', '')}", "session_id": session_id}
     else:
