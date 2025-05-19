@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>多模型推理演示</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            background: #f4f6fa;
+            margin: 0;
+            padding: 0;
+        }
+        .container {
+            max-width: 520px;
+            margin: 40px auto;
+            background: #fff;
+            border-radius: 12px;
+            box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+            padding: 32px 28px 24px 28px;
+        }
+        h2 {
+            text-align: center;
+            color: #2d3a4b;
+            margin-bottom: 28px;
+        }
+        label {
+            color: #2d3a4b;
+            font-weight: 500;
+        }
+        select, textarea, input[type="file"] {
+            width: 100%;
+            margin-top: 6px;
+            margin-bottom: 18px;
+            padding: 8px 10px;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            font-size: 15px;
+            background: #f9fafb;
+            transition: border 0.2s;
+        }
+        select:focus, textarea:focus {
+            border: 1.5px solid #4f8cff;
+            outline: none;
+        }
+        textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        button {
+            width: 100%;
+            background: linear-gradient(90deg, #4f8cff 0%, #2355e6 100%);
+            color: #fff;
+            border: none;
+            border-radius: 6px;
+            padding: 12px 0;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 8px;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: linear-gradient(90deg, #2355e6 0%, #4f8cff 100%);
+        }
+        .result-img {
+            max-width: 320px;
+            border: 1px solid #ccc;
+            margin-top: 10px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        }
+        .embedding-box {
+            font-family: monospace;
+            background: #f7f7f7;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .desc {
+            color: #888;
+            font-size: 14px;
+            margin-left: 8px;
+        }
+        .row {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+        .row > * { flex: 1; }
+        #result-box {
+            margin-top: 32px;
+            min-height: 32px;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>多模型推理演示</h2>
+        <div class="row">
+            <label for="model-type-select">模型类型：</label>
+            <select id="model-type-select"></select>
+        </div>
+        <div class="row">
+            <label for="model-select">选择模型：</label>
+            <select id="model-select"></select>
+        </div>
+        <div class="desc" id="model-desc"></div>
+        <form id="infer-form" style="margin-top:10px;">
+            <div id="input-text-group">
+                <label>输入文本：</label><br>
+                <textarea id="input-text" rows="3" cols="50"></textarea>
+            </div>
+            <div id="input-image-group" style="display:none;">
+                <label>上传图片：</label>
+                <input type="file" id="input-image" accept="image/*">
+            </div>
+            <button type="submit">提交推理</button>
+        </form>
+        <div id="result-box"></div>
+    </div>
+    <script>
+    const apiBase = "http://localhost:8080";
+    let models = [];
+    let currentModel = null;
+    let modelTypes = [];
+
+    // 枚举定义（可与后端同步）
+    const MODEL_TYPE_ENUM = [
+        { value: 'chat', label: '文本对话' },
+        { value: 'text2img', label: '文生图' },
+        // { value: 'embedding', label: 'Embedding' }, // 如有需要可解开
+    ];
+
+    async function fetchModels() {
+        const res = await fetch(apiBase + "/api/models");
+        models = await res.json();
+        // 提取所有模型类型
+        modelTypes = [...new Set(models.map(m => m.model_type))];
+        // 填充类型下拉
+        const typeSelect = document.getElementById('model-type-select');
+        typeSelect.innerHTML = '';
+        MODEL_TYPE_ENUM.forEach(type => {
+            if (modelTypes.includes(type.value)) {
+                const opt = document.createElement('option');
+                opt.value = type.value;
+                opt.textContent = type.label;
+                typeSelect.appendChild(opt);
+            }
+        });
+        typeSelect.onchange = onTypeChange;
+        onTypeChange();
+        // 判断是否有可用模型，控制按钮
+        updateSubmitButtonState();
+    }
+
+    function onTypeChange() {
+        const typeSelect = document.getElementById('model-type-select');
+        const selectedType = typeSelect.value;
+        // 只显示该类型的模型
+        const filtered = models.filter(m => m.model_type === selectedType);
+        const select = document.getElementById('model-select');
+        select.innerHTML = '';
+        filtered.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.textContent = m.model_name;
+            select.appendChild(opt);
+        });
+        select.onchange = onModelChange;
+        // 自动切换到第一个模型
+        if (filtered.length > 0) {
+            select.value = filtered[0].id;
+        }
+        onModelChange();
+        updateSubmitButtonState();
+    }
+
+    function onModelChange() {
+        const select = document.getElementById('model-select');
+        const modelId = select.value;
+        currentModel = models.find(m => String(m.id) === String(modelId));
+        document.getElementById('model-desc').textContent = currentModel?.model_name || '';
+        // 输入框切换
+        if(currentModel.model_type === 'text2img') {
+            document.getElementById('input-text-group').style.display = '';
+            document.getElementById('input-image-group').style.display = 'none';
+        } else {
+            document.getElementById('input-text-group').style.display = '';
+            document.getElementById('input-image-group').style.display = 'none';
+        }
+        updateSubmitButtonState();
+    }
+
+    document.getElementById('infer-form').onsubmit = async function(e) {
+        e.preventDefault();
+        if (!currentModel) return;
+        const formData = new FormData();
+        formData.append('model_id', currentModel.id);
+        if (document.getElementById('input-text').value)
+            formData.append('input_text', document.getElementById('input-text').value);
+        const imgFile = document.getElementById('input-image').files[0];
+        if (imgFile) formData.append('input_image', imgFile);
+        const res = await fetch(apiBase + '/api/infer', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await res.json();
+        showResult(data);
+    };
+
+    function showResult(data) {
+        const box = document.getElementById('result-box');
+        box.innerHTML = '';
+        if (data.result) {
+            box.innerHTML = `<b>对话回复：</b><br>${data.result}`;
+        } else if (data.image_url) {
+            box.innerHTML = `<b>生成图片：</b><br><img class="result-img" src="${data.image_url}">`;
+        } else if (data.error) {
+            box.innerHTML = `<span style="color:red">${data.error}</span>`;
+        } else {
+            box.innerHTML = `<span style="color:gray">无结果</span>`;
+        }
+    }
+
+    function updateSubmitButtonState() {
+        const btn = document.querySelector('#infer-form button[type="submit"]');
+        if (!models.length || !currentModel) {
+            btn.disabled = true;
+            btn.style.opacity = 0.5;
+            btn.style.cursor = 'not-allowed';
+        } else {
+            btn.disabled = false;
+            btn.style.opacity = 1;
+            btn.style.cursor = 'pointer';
+        }
+    }
+
+    // 页面加载时先禁用按钮，防止接口未返回时可点
+    document.addEventListener('DOMContentLoaded', function() {
+        updateSubmitButtonState();
+    });
+
+    fetchModels();
+    </script>
+</body>
+</html> 
