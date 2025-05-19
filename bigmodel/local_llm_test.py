@@ -3,6 +3,7 @@ from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
                             QHBoxLayout, QLineEdit, QPushButton, 
                             QTextEdit, QMessageBox, QCheckBox, QComboBox, QLabel)
 from PyQt6.QtCore import QThread, pyqtSignal
+from PyQt6.QtGui import QTextCursor
 from langchain_openai import ChatOpenAI
 from langchain.prompts import ChatPromptTemplate
 from langchain.chains import LLMChain
@@ -136,6 +137,7 @@ class ChatWindow(QMainWindow):
         
         # 初始化聊天线程
         self.chat_thread = None
+        self.is_first_ai_chunk = True
 
     def init_llm(self):
         """初始化大语言模型和对话历史"""
@@ -190,6 +192,8 @@ class ChatWindow(QMainWindow):
         self.send_button.setEnabled(False)
         self.stop_button.setEnabled(True)
         
+        self.is_first_ai_chunk = True
+        
         # 创建并启动聊天线程
         self.chat_thread = ChatThread(
             self.llm,
@@ -204,7 +208,23 @@ class ChatWindow(QMainWindow):
 
     def update_response(self, text):
         """更新响应文本"""
-        self.chat_history.append(text)
+        if self.stream_checkbox.isChecked():
+            cursor = self.chat_history.textCursor()
+            cursor.movePosition(QTextCursor.MoveOperation.End)
+            if self.is_first_ai_chunk:
+                # 在流式响应的第一块中添加换行符
+                # 这确保了AI的响应在用户的消息后从新行开始。
+                cursor.insertText("\nAI: " + text)
+                self.is_first_ai_chunk = False
+            else:
+                cursor.insertText(text)
+            self.chat_history.setTextCursor(cursor) # 更新小部件的游标
+            self.chat_history.ensureCursorVisible() # 滚动以显示新文本
+        else:
+            # 非流式：'text' 是完整响应。
+            # self.chat_history.append 将在需要时在 "AI: " 之前添加换行符，
+            # 并确保 "AI: {text}" 独占一行。
+            self.chat_history.append(f"AI: {text}")
 
     def chat_finished(self, success, message):
         """聊天完成后的处理"""

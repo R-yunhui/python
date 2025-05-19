@@ -1,0 +1,40 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+# 项目概览与开发偏好
+
+## 用户背景与目标
+
+本项目主要用于一位 Python 初学者的学习和实践。该学习者拥有约6年的 Java 开发经验，目前专注于学习 Python 以进行大型语言模型 (LLM) 的应用开发，同时也会涉及到部分 Web 接口的开发（可能会使用 FastAPI 等框架，可参考 `fastapi_detailed_guide.md`）。
+
+## 项目主要文件和目录
+
+- `README.md` ([README.md](mdc:README.md)): 项目的说明文件，通常包含项目的目标、如何运行等信息。
+- `requirements.txt` ([requirements.txt](mdc:requirements.txt)): 列出了项目所需的 Python 依赖包。
+- `basic/`: 存放 Python 基础知识学习和练习相关的代码。
+- `bigmodel/`: 存放与大型语言模型应用开发相关的代码。
+- `demo/`: 可能包含项目的演示代码、示例或 Web 接口相关的早期实现。
+- `env.md` ([env.md](mdc:env.md)): 关于项目环境配置的文档。
+- `fastapi_detailed_guide.md` ([fastapi_detailed_guide.md](mdc:fastapi_detailed_guide.md)): FastAPI 框架的详细学习指南，对 Web 接口开发部分有重要参考价值。
+
+## 主要技术栈与常用库
+
+根据 `requirements.txt`，项目目前主要使用以下库：
+- `fastapi`: 用于构建 Web API。
+- `uvicorn`: ASGI 服务器，常用于运行 FastAPI 应用。
+
+随着项目的进展，可以向此列表添加更多常用库（例如，用于 LLM 开发的 `transformers`, `langchain`；用于数据处理的 `pandas`, `numpy` 等）。
+
+## 编码风格与协作偏好
+
+- **注释**: 请在关键代码逻辑、复杂函数或难以理解的部分添加清晰的注释。避免过多或不必要的注释。
+- **日志**: 日志打印应完整记录关键操作和潜在错误信息，但避免在生产环境中输出过多调试信息。确保日志级别和内容的合理性。
+- **代码风格**: 鉴于用户从 Java 转到 Python，可以适当提示 Pythonic 的写法和最佳实践。
+
+请根据您的实际情况调整和完善此规则。
+
+
+
+
