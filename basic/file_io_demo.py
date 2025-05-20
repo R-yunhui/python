@@ -1,10 +1,19 @@
 # -*- coding: utf-8 -*-
+import os
 
 def demonstrate_file_io():
     """演示基本的文件读写操作"""
     print("\n--- 文件操作 (File I/O) 演示 ---")
 
-    file_path = "study/sample.txt" # 定义要操作的文件路径和名称
+    file_path = "./basic/sample.txt" # 定义要操作的文件路径和名称
+    
+    if not os.path.exists(file_path):
+        print(f"[创建] 文件 {file_path} 不存在，正在创建...")
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write("这是第一行文本。\n") # write() 写入字符串
+            f.write("Hello, File!\n")
+            lines_to_write = ["第三行来自列表。\n", "这是最后一行写入。\n"]
+            f.writelines(lines_to_write) # writelines() 可以写入一个字符串列表
 
     # --- 1. 写入文件 ('w'模式) ---
     # 'w' 模式会覆盖已存在的文件内容；如果文件不存在，则会创建新文件。
