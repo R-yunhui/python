@@ -1,3 +1,4 @@
+import os
 from typing import List
 
 # 基础的学生类定义
@@ -49,7 +50,28 @@ class Cat(Animal):
 
 # 基础 io 练习
 def io_test():
-    pass
+    # 创建一个文件
+    file_path = "./demo.txt"
+
+    if not os.path.exists(file_path):
+        print(f"文件 {file_path} 不存在，正在创建...")
+        try:
+            # 创建并写入文件
+            with open(file_path, "w", encoding="utf-8") as file:
+                file.write("Hello, World!")
+            print(f"文件 {file_path} 创建成功。")
+        except Exception as e:
+            print(f"创建文件时发生错误: {e}")
+    else:
+        print(f"文件 {file_path} 已存在。")
+        # 读取文件内容
+        try:
+            # 读取文件内容
+            with open(file_path, "r", encoding="utf-8") as file:
+                content = file.read()
+                print(f"文件内容: {content}")
+        except Exception as e:
+            print(f"读取文件时发生错误: {e}")
 
 if __name__ == "__main__":
     # 初始化一个学生的列表 List
@@ -69,3 +91,6 @@ if __name__ == "__main__":
     cat = Cat("咪咪")
     print(dog.speak())
     print(cat.speak())
+
+    # 文件读写
+    io_test()
