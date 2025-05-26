@@ -12,6 +12,14 @@ app = FastAPI(
 )
 
 # --- 数据模型 (Pydantic Models) ---
+# ItemBase 继承自 BaseModel 的原因：
+# 1. BaseModel 是 Pydantic 提供的基础模型类，提供数据验证和序列化功能
+# 2. 通过继承 BaseModel 可以:
+#    - 自动验证输入数据的类型和格式
+#    - 自动将 JSON 数据转换为 Python 对象
+#    - 自动将 Python 对象转换为 JSON 数据
+#    - 提供清晰的错误信息
+# 3. 作为基础模型类，其他模型类(ItemCreate/ItemUpdate/ItemResponse)可以复用这些基本属性定义
 class ItemBase(BaseModel):
     name: str
     description: Optional[str] = None
