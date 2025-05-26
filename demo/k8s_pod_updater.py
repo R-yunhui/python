@@ -3,7 +3,7 @@ import time
 import sys
 from PyQt6.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QLabel, QLineEdit, QPushButton, 
-                            QTextEdit, QMessageBox, QGroupBox)
+                            QTextEdit, QMessageBox, QGroupBox, QComboBox)
 from PyQt6.QtCore import QThread, pyqtSignal
 
 class UpdateThread(QThread):
@@ -172,6 +172,17 @@ class K8sPodUpdaterGUI(QMainWindow):
         self.setWindowTitle("K8s Pod 镜像更新工具")
         self.setMinimumSize(800, 600)
         
+        # 预设服务器信息
+        self.preset_servers = {
+            "36环境": {
+                "hostname": "192.168.2.36",
+                "port": 3622,
+                "username": "root",
+                "password": "kl123.A"
+            }
+            # 可以添加更多预设服务器
+        }
+        
         # 创建主窗口部件
         main_widget = QWidget()
         self.setCentralWidget(main_widget)
@@ -210,6 +221,16 @@ class K8sPodUpdaterGUI(QMainWindow):
 
     def _create_server_inputs(self, layout):
         """创建服务器连接信息输入框"""
+        # 服务器选择
+        server_layout = QHBoxLayout()
+        server_layout.addWidget(QLabel("选择服务器:"))
+        self.server_combo = QComboBox()
+        self.server_combo.addItem("自定义服务器")
+        self.server_combo.addItems(self.preset_servers.keys())
+        self.server_combo.currentTextChanged.connect(self.on_server_selected)
+        server_layout.addWidget(self.server_combo)
+        layout.addLayout(server_layout)
+        
         # IP地址
         ip_layout = QHBoxLayout()
         ip_layout.addWidget(QLabel("服务器IP地址:"))
@@ -244,15 +265,25 @@ class K8sPodUpdaterGUI(QMainWindow):
         # 命名空间
         namespace_layout = QHBoxLayout()
         namespace_layout.addWidget(QLabel("命名空间:"))
-        self.namespace = QLineEdit()
-        namespace_layout.addWidget(self.namespace)
+        
+        # 确保使用 QComboBox
+        self.namespace_combo = QComboBox()
+        print(f"Created namespace_combo type: {type(self.namespace_combo)}")  # 添加调试信息
+        
+        namespace_layout.addWidget(self.namespace_combo)
+        refresh_ns_btn = QPushButton("刷新命名空间")
+        refresh_ns_btn.clicked.connect(self.refresh_namespaces)
+        namespace_layout.addWidget(refresh_ns_btn)
         layout.addLayout(namespace_layout)
         
-        # Deployment名称
+        # Deployment选择
         deployment_layout = QHBoxLayout()
-        deployment_layout.addWidget(QLabel("Deployment名称:"))
-        self.deployment_name = QLineEdit()
-        deployment_layout.addWidget(self.deployment_name)
+        deployment_layout.addWidget(QLabel("Deployment:"))
+        self.deployment_combo = QComboBox()
+        deployment_layout.addWidget(self.deployment_combo)
+        refresh_deploy_btn = QPushButton("刷新Deployment")
+        refresh_deploy_btn.clicked.connect(self.refresh_deployments)
+        deployment_layout.addWidget(refresh_deploy_btn)
         layout.addLayout(deployment_layout)
         
         # 新镜像地址
@@ -282,6 +313,93 @@ class K8sPodUpdaterGUI(QMainWindow):
         """添加日志到日志区域"""
         self.log_area.append(message)
 
+    def on_server_selected(self, server_name):
+        """当选择预设服务器时，自动填充服务器信息"""
+        if server_name == "自定义服务器":
+            self.hostname.clear()
+            self.port.setText("22")
+            self.username.clear()
+            self.password.clear()
+        else:
+            server_info = self.preset_servers[server_name]
+            self.hostname.setText(server_info["hostname"])
+            self.port.setText(str(server_info["port"]))
+            self.username.setText(server_info["username"])
+            self.password.setText(server_info["password"])
+
+    def refresh_namespaces(self):
+        """获取并更新命名空间列表"""
+        try:
+            # 创建临时连接获取命名空间
+            updater = K8sPodUpdater(
+                hostname=self.hostname.text().strip(),
+                username=self.username.text().strip(),
+                password=self.password.text(),
+                port=int(self.port.text().strip() or "22")
+            )
+            
+            if not updater.connect():
+                QMessageBox.critical(self, "错误", "连接服务器失败")
+                return
+
+            # 获取所有命名空间
+            cmd = "kubectl get namespaces -o jsonpath='{.items[*].metadata.name}'"
+            stdin, stdout, stderr = updater.client.exec_command(cmd)
+            namespaces = stdout.read().decode().strip().split()
+            
+            # 过滤系统命名空间和ability开头的命名空间
+            system_namespaces = {'kube-system'}
+            filtered_namespaces = [
+                ns for ns in namespaces 
+                if ns not in system_namespaces and not ns.lower().startswith('ability')
+            ]
+            
+            # 更新命名空间下拉框
+            self.namespace_combo.clear()
+            self.namespace_combo.addItems(filtered_namespaces)
+            
+            updater.close()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"获取命名空间失败: {str(e)}")
+
+    def refresh_deployments(self):
+        """获取并更新Deployment列表"""
+        try:
+            namespace = self.namespace_combo.currentText()
+            if not namespace:
+                QMessageBox.warning(self, "警告", "请先选择命名空间")
+                return
+
+            # 创建临时连接获取Deployment
+            updater = K8sPodUpdater(
+                hostname=self.hostname.text().strip(),
+                username=self.username.text().strip(),
+                password=self.password.text(),
+                port=int(self.port.text().strip() or "22")
+            )
+            
+            if not updater.connect():
+                QMessageBox.critical(self, "错误", "连接服务器失败")
+                return
+
+            # 获取所有以java开头的deployment
+            cmd = f"kubectl get deployments -n {namespace} -o jsonpath='{{.items[*].metadata.name}}'"
+            stdin, stdout, stderr = updater.client.exec_command(cmd)
+            deployments = stdout.read().decode().strip().split()
+            
+            # 过滤出java开头的deployment
+            java_deployments = [deploy for deploy in deployments if deploy.lower().startswith('java')]
+            
+            # 更新Deployment下拉框
+            self.deployment_combo.clear()
+            self.deployment_combo.addItems(java_deployments)
+            
+            updater.close()
+            
+        except Exception as e:
+            QMessageBox.critical(self, "错误", f"获取Deployment失败: {str(e)}")
+
     def update_image(self):
         """更新镜像的主函数"""
         # 获取输入值
@@ -290,8 +408,8 @@ class K8sPodUpdaterGUI(QMainWindow):
             "port": int(self.port.text().strip() or "22"),
             "username": self.username.text().strip(),
             "password": self.password.text(),
-            "namespace": self.namespace.text().strip(),
-            "deployment_name": self.deployment_name.text().strip(),
+            "namespace": self.namespace_combo.currentText(),
+            "deployment_name": self.deployment_combo.currentText(),
             "new_image": self.new_image.text().strip()
         }
         
