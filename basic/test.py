@@ -73,7 +73,7 @@ def calculate():
             print("退出计算器")
             break
         else:
-            inputs : List[int] = user_input.split(" ")
+            inputs : List[str] = user_input.split(" ")
             num_one = int(inputs[0])
             operator = inputs[1]
             num_two = int(inputs[2])
